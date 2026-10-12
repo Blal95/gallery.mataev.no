@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Film-archive palette — warm near-black + amber, no cold cyan. */
+  --color-bg: #0a0908;
+  --color-bg-2: #100e0c;
+  --color-text: #efe8dd;
+  --color-muted: #6b6258;
+  --color-muted-2: #9b8f80;
+  --color-amber: #e3a857;        /* film amber — the accent */
+  --color-amber-deep: #c0823a;
+  --color-cyan: #e3a857;         /* legacy alias → amber, so stray refs stay on-brand */
+  --color-line: #1c1814;
+  --color-line-2: #2a241d;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: var(--font-playfair), Georgia, "Times New Roman", serif;
+}
+
+html, body { background: var(--color-bg); color: var(--color-text); }
+html { scroll-behavior: smooth; }
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
+
+::selection { background: var(--color-amber); color: #1a1206; }
+
+/* Dark scrollbar */
+* { scrollbar-width: thin; scrollbar-color: var(--color-line-2) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--color-line-2); border-radius: 999px; border: 2px solid var(--color-bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* Entry animation for the photo/video detail view */
+@keyframes photo-reveal {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-photo-reveal {
+  animation: photo-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Flash animation for play/pause center indicator */
+@keyframes indicator-flash {
+  0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+.animate-indicator {
+  animation: indicator-flash 0.5s ease-out forwards;
+}
+
+/* Film grain — fixed, faint, non-interactive. Gives an archival texture. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Focus ring: keyboard navigation only */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Leaflet — trap internal z-index (controls use ~1000) so maps never paint above modals (z-50). */
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  background: #110e0a !important;
+  contain: layout;
+}
+
+/* Colour grading on the tile pane only (not per-tile).
+   No will-change here — the tile pane must NOT get its own GPU compositor
+   layer. During zoom Leaflet creates a second tile container inside this
+   pane; if the pane is a separate layer the filter gets composited at
+   different stages for old vs new tiles, producing the two-tone grey/dark
+   artifact. Rendering inside .leaflet-map-pane's existing GPU layer keeps
+   the filter consistent for every tile at every moment. */
+.leaflet-tile-pane {
+  filter: brightness(0.95) contrast(1.05) saturate(0.65) sepia(0.18);
+}
+
+/* NOTE: no dark background on the tile pane / tile container. The backdrop
+   tile layer (pinned low-zoom, never pruned) sits behind the detail layer and
+   fills any gap during zoom, so a loading detail tile reveals soft map — not a
+   dark square. The only dark fallback is .leaflet-container, seen solely where
+   no tile exists at all (true ocean / off-world). */
+
+/* Tiles sit inside the already-promoted pane — no per-tile GPU layer needed.
+   Negative margin closes the 1-px subpixel gaps between adjacent tiles. */
+.leaflet-container .leaflet-tile {
+  image-rendering: auto;
+  margin: -1px !important;
+}
+
+/* Map pane on GPU — pan moves the compositor layer, not the DOM. */
+.leaflet-map-pane {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Tile shadow pane (used during zoom transitions) also needs GPU. */
+.leaflet-shadow-pane,
+.leaflet-overlay-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+  transform: translateZ(0);
+}
+
+/* Tiles appear instantly — no fade. Leaflet removes old zoom-level tiles the
+   moment new ones are "loaded", so any opacity transition creates a dark flash
+   while the new tiles animate in. Instant appearance eliminates that gap. */
+.leaflet-tile { opacity: 0; }
+.leaflet-tile-loaded { opacity: 1; }
+
+/* Leaflet's default zoom animation is 0.25s — speed it up so zoom feels instant. */
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition: transform 0.12s cubic-bezier(0.1, 0, 0.25, 1) !important;
+}
+
+/* Attribution — tiny, flush right, matches palette. */
+.leaflet-control-attribution {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 6px 4px 0 !important;
+}
+
+
+/* Leaflet zoom controls — match the dark theme instead of stock white */
+.leaflet-bar {
+  border: 1px solid var(--color-line-2) !important;
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.8) !important;
+}
+.leaflet-bar a {
+  background: var(--color-bg-2) !important;
+  color: var(--color-muted-2) !important;
+  border-bottom: 1px solid var(--color-line) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--color-bg) !important;
+  color: var(--color-amber) !important;
+}
+.leaflet-bar a.leaflet-disabled {
+  background: var(--color-bg-2) !important;
+  color: var(--color-line-2) !important;
+}
+
+/* Atlas map — dark popups matching the film-archive palette */
+.atlas-popup .leaflet-popup-content-wrapper {
+  background: var(--color-bg-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-line-2);
+  border-radius: 8px;
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.92), 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+.atlas-popup .leaflet-popup-content { margin: 10px; }
+.atlas-popup .leaflet-popup-tip { background: var(--color-bg-2); }
+.atlas-popup .leaflet-popup-tip-container { margin-top: -1px; }
+.atlas-popup .leaflet-popup-close-button {
+  color: var(--color-muted) !important;
+  right: 7px !important; top: 7px !important;
+  font-size: 17px !important;
+  width: 22px !important; height: 22px !important;
+  line-height: 22px !important;
+  padding: 0 !important;
+  background: none !important;
+}
+.atlas-popup .leaflet-popup-close-button:hover { color: var(--color-amber) !important; }
+.atlas-popup a[data-slug]:hover img {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+/* Gallery tile entrance — staggered fade+lift per tile */
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced-motion: collapse durations, disable hover transforms */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .group:hover img,
+  .group:hover {
+    transform: none !important;
+    scale: none !important;
+    translate: none !important;
+  }
+  /* Kill tile-in stagger so screen reader / low-motion users see content instantly */
+  [style*="tile-in"] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
